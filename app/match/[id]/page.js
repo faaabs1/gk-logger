@@ -128,13 +128,13 @@ export default function MatchPage({ params }) {
             return (
               <li key={e.id} className={`p-2 rounded ${bg}`}>
                 <div className="flex justify-between">
-                  <span className="font-bold">{e.minute}'</span>
+                  <span className="font-bold">{e.minute}′</span> {/* U+2032 prime, looks like a minute mark */}
                   <span>{e.category}</span>
                 </div>
                 <div className="text-sm mt-1">
                   {e.subcategories.join(", ")} | <b>{e.rating}</b>
                 </div>
-                {e.comment && <div className="italic">"{e.comment}"</div>}
+                {e.comment && <div className="italic">“{e.comment}”</div>} {/* curly quotes */} 
               </li>
             );
           })}
