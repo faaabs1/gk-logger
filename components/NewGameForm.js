@@ -28,12 +28,12 @@ export default function NewGameForm() {
       setErrorMsg("");
 
       const teamQ = supabase
-        .from("Team")
-        .select("teamID, team_name")
+        .from("team")
+        .select("teamid, team_name")
         .order("team_name", { ascending: true });
 
       const playerQ = supabase
-        .from("Player")
+        .from("player")
         .select("id, player_firstname, player_lastname")
         .order("player_lastname", { ascending: true })
         .order("player_firstname", { ascending: true });
@@ -43,9 +43,16 @@ export default function NewGameForm() {
 
       if (cancelled) return;
 
-      if (teamError || playerError) {
-        setErrorMsg(teamError?.message || playerError?.message || "Failed to load data.");
-      } else {
+      if (teamError) {
+        console.error("Team error:", teamError);
+        setErrorMsg(teamError.message || "Failed to load teams.");
+      }
+      if (playerError) {
+        console.error("Player error:", playerError);
+        setErrorMsg(playerError.message || "Failed to load players.");
+      }
+      
+      if (!teamError && !playerError) {
         setTeams(teamData || []);
         setPlayers(playerData || []);
       }
@@ -85,7 +92,7 @@ export default function NewGameForm() {
 
     setSaving(true);
     const { data, error } = await supabase
-      .from("Game")
+      .from("game")
       .insert([
         {
           game_location: Number(locationChoice),     // 0 = home, 1 = away
@@ -103,7 +110,7 @@ export default function NewGameForm() {
       return;
     }
 
-    router.push(`/match/${data.gameID}`);
+    router.push(`/match/${data.gameid}`);
   };
 
   if (loading) {
@@ -120,15 +127,15 @@ export default function NewGameForm() {
 
       {/* Team */}
       <div>
-        <label className="block mb-1">Opponent:</label>
+        <label className="block mb-1 text-white">Opponent:</label>
         <select
           value={selectedTeam}
           onChange={(e) => setSelectedTeam(e.target.value)}
-          className="w-full p-2 rounded text-black"
+          className="w-full p-2 rounded text-white bg-gray-800 border border-gray-700"
         >
           <option value="">Select a team</option>
           {teams.map((t) => (
-            <option key={t.teamID} value={t.teamID}>
+            <option key={t.teamid} value={t.teamid}>
               {t.team_name}
             </option>
           ))}
@@ -137,11 +144,11 @@ export default function NewGameForm() {
 
       {/* Goalkeeper */}
       <div>
-        <label className="block mb-1">Goalkeeper:</label>
+        <label className="block mb-1 text-white">Goalkeeper:</label>
         <select
           value={selectedGoalkeeper}
           onChange={(e) => setSelectedGoalkeeper(e.target.value)}
-          className="w-full p-2 rounded text-black"
+          className="w-full p-2 rounded text-white bg-gray-800 border border-gray-700"
         >
           <option value="">Select a goalkeeper</option>
           {playersWithName.map((p) => (
@@ -183,12 +190,12 @@ export default function NewGameForm() {
 
       {/* Date & Time */}
       <div>
-        <label className="block mb-1">Date & Time:</label>
+        <label className="block mb-1 text-white">Date & Time:</label>
         <input
           type="datetime-local"
           value={datetime}
           onChange={(e) => setDatetime(e.target.value)}
-          className="w-full p-2 rounded text-black"
+          className="w-full p-2 rounded text-white bg-gray-800 border border-gray-700"
         />
       </div>
 

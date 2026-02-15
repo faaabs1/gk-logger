@@ -1,144 +1,254 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, use } from "react";
 import Stopwatch from "@/components/Stopwatch";
 import EventLogger from "@/components/EventLogger";
-import { supabase } from "@/lib/supabaseClient"; // <-- NEW
+import MatchPeriodControl from "@/components/MatchPeriodControl";
+import GoalkeeperSelector from "@/components/GoalkeeperSelector";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function MatchPage({ params }) {
-  const matchId = params.id;
+  const matchId = use(params).id;
   const [events, setEvents] = useState([]);
   const [half, setHalf] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [stopwatchTime, setStopwatchTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(""); // <-- NEW (optional banner)
-  const handleEndGame = async () => {
-  setIsRunning(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // OPTIONAL: update Game row with an ended_at timestamp
-  // const { error } = await supabase
-  //   .from("Game")
-  //   .update({ ended_at: new Date().toISOString() })
-  //   .eq("gameID", matchId);
-  // if (error) console.error("Failed to end game:", error);
+  // Game metadata
+  const [gameData, setGameData] = useState(null);
+  const [currentGoalkeeperId, setCurrentGoalkeeperId] = useState(null);
+  const [periodData, setPeriodData] = useState(null);
+  const [secondHalfResetKey, setSecondHalfResetKey] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // Redirect to summary or home
-  window.location.href = "/"; // or `/games/${matchId}/summary`
-};
+  // Fetch game data on mount
+  useEffect(() => {
+    const fetchGameData = async () => {
+      setLoading(true);
 
+      // Fetch game data
+      const { data: gameData, error: gameError } = await supabase
+        .from("game")
+        .select("*")
+        .eq("gameid", Number(matchId))
+        .single();
 
-  // Insert to Supabase + keep local log list
-  const handleLogEvent = async (event) => {
-    setErrorMsg("");
+      if (gameError) {
+        setErrorMsg(gameError.message);
+        setLoading(false);
+        return;
+      }
 
-    // Build payload for your Event table columns
-    const payload = {
-      match_id: Number(matchId),          // FK to Game.gameID
-      minute: event.minute,              // number
-      category: event.category,          // text
-      subcategories: event.subcategories, // JSON (array)
-      rating: event.rating,              // text/enum
-      comment: event.comment || null,    // text (nullable)
-      // created_at: let DB default handle it
+      if (!gameData) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch team data
+      const { data: teamData } = await supabase
+        .from("team")
+        .select("*")
+        .eq("teamid", gameData.game_opponent)
+        .single();
+
+      // Fetch player data
+      const { data: playerData } = await supabase
+        .from("player")
+        .select("*")
+        .eq("id", gameData.goalkeeper)
+        .single();
+
+      setGameData({
+        ...gameData,
+        team: teamData,
+        player: playerData,
+      });
+      setCurrentGoalkeeperId(gameData.goalkeeper);
+
+      setLoading(false);
     };
 
+    fetchGameData();
+  }, [matchId]);
+
+  // Fetch period data when half changes
+  useEffect(() => {
+    const fetchPeriodData = async () => {
+      const { data, error } = await supabase
+        .from("matchperiod")
+        .select("*")
+        .eq("game_id", Number(matchId))
+        .eq("period", half)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error fetching period:", error);
+      } else if (data) {
+        setPeriodData(data);
+      } else {
+        setPeriodData(null);
+      }
+    };
+
+    fetchPeriodData();
+  }, [half, matchId]);
+  const handleEndGame = async () => {
+    setIsRunning(false);
+
+    // OPTIONAL: update Game row with an ended_at timestamp
+    // const { error } = await supabase
+    //   .from("Game")
+    //   .update({ ended_at: new Date().toISOString() })
+    //   .eq("gameID", matchId);
+    // if (error) console.error("Failed to end game:", error);
+
+    // Redirect to summary or home
+    window.location.href = "/"; // or `/games/${matchId}/summary`
+  };
+
+  const handlePeriodStart = (data) => {
+    setPeriodData(data);
+    setIsRunning(true);  // Auto-start stopwatch when period starts
+  };
+
+  const handlePeriodEnd = (data) => {
+    setPeriodData(data);
+    setIsRunning(false);  // Auto-stop stopwatch when period ends
+    
+    // If it's the 1st half ending, reset the 2nd half button and switch to 2nd half
+    if (half === 1) {
+      setSecondHalfResetKey((prev) => prev + 1);
+      setHalf(2);
+      setStopwatchTime(45 * 60); // Reset stopwatch to 45:00 for second half
+    }
+    
+    // If it's the 2nd half ending, end the game automatically
+    if (half === 2) {
+      window.location.href = "/";
+    }
+  };
+
+  const handleGoalkeeperChange = (newGoalkeeperId) => {
+    setCurrentGoalkeeperId(newGoalkeeperId);
+  };
+
+
+  // Insert to Supabase
+  const handleLogEvent = async (payload) => {
+    setErrorMsg("");
+
     const { data, error } = await supabase
-      .from("Event")                     // NOTE: case-sensitive table name
+      .from("eventlog")
       .insert([payload])
       .select()
       .single();
 
     if (error) {
-      console.error("Insert Event error:", error);
+      console.error("Insert EventLog error:", error);
       setErrorMsg(error.message || "Failed to save event.");
       return;
     }
 
-    // Keep your local list the same shape you already render
-    // (retain the UI-generated id so your list keys keep working)
-    setEvents((prev) => [...prev, event]);
+    // Keep local list for display
+    setEvents((prev) => [...prev, data]);
   };
 
   const handleStartPause = () => setIsRunning((prev) => !prev);
 
-  const handleNextHalf = () => {
-    setIsRunning(false);          // stop first half
-    setStopwatchTime(45 * 60);    // reset to 45:00
-    setHalf(2);
-    setIsRunning(true);           // start second half immediately
-  };
-
   return (
     <div className="p-6 space-y-6 bg-gray-900 min-h-screen text-white">
-      {/* Metadata */}
-      <div className="bg-gray-800 p-4 rounded-lg space-y-1">
-        <div><b>Match:</b> {matchId}</div>
-        <div><b>Half:</b> {half === 1 ? "First Half" : "Second Half"}</div>
-      </div>
+      {/* Game Metadata */}
+      {loading ? (
+        <div className="bg-gray-800 p-4 rounded-lg">Loading game data...</div>
+      ) : gameData ? (
+        <div className="bg-gray-800 p-4 rounded-lg space-y-2">
+          <div>
+            <b>Opponent:</b> {gameData.team?.team_name || "Unknown"}
+          </div>
+          <div>
+            <b>Location:</b> {gameData.game_location === 0 ? "Home" : "Away"}
+          </div>
+          <div>
+            <b>Date/Time:</b> {new Date(gameData.game_datetime).toLocaleString()}
+          </div>
+          <div>
+            <b>Starting Goalkeeper:</b>{" "}
+            {gameData.player
+              ? `${gameData.player.player_firstname} ${gameData.player.player_lastname}`
+              : "Unknown"}
+          </div>
+        </div>
+      ) : null}
 
-      {/* Optional error banner */}
+      {/* Error banner */}
       {errorMsg && (
         <div className="bg-red-600/20 border border-red-600 text-red-200 p-3 rounded">
           {errorMsg}
         </div>
       )}
 
+      {/* Goalkeeper Selector */}
+      <GoalkeeperSelector
+        gameId={Number(matchId)}
+        currentGoalkeeperId={currentGoalkeeperId}
+        currentPeriod={half}
+        onGoalkeeperChange={handleGoalkeeperChange}
+      />
 
-      {/* Controls */}
-      <div className="flex space-x-4">
-        <button
-          onClick={handleStartPause}
-          className="px-4 py-2 bg-green-600 rounded hover:bg-green-500"
-        >
-          {isRunning ? "Pause" : "Start"}
-        </button>
-        {half === 1 && (
-          <button
-            onClick={handleNextHalf}
-            className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500"
-          >
-            2. Halbzeit starten
-          </button>
-        )}
-        <button
-          onClick={handleEndGame}
-          className="px-4 py-2 bg-red-600 rounded hover:bg-red-500 ml-auto"
-        >
-          Spiel beenden
-        </button>
-      </div>
-
+      {/* Period Control */}
+      <MatchPeriodControl
+        gameId={Number(matchId)}
+        currentPeriod={half}
+        periodData={periodData}
+        onPeriodStart={handlePeriodStart}
+        onPeriodEnd={handlePeriodEnd}
+        resetKey={secondHalfResetKey}
+      />
 
       {/* Stopwatch */}
       <Stopwatch time={stopwatchTime} running={isRunning} onTick={setCurrentTime} />
 
       {/* Event Logger */}
-      <EventLogger currentTime={currentTime} onLog={handleLogEvent} />
+      <EventLogger 
+        gameId={Number(matchId)} 
+        currentTime={currentTime} 
+        onLog={handleLogEvent}
+        running={isRunning}
+      />
 
-      {/* Event Log */}
+      {/* Aggregated Event Summary */}
       <div>
-        <h2 className="text-xl font-semibold mt-6 mb-2">Event Log</h2>
-        <ul className="space-y-2">
-          {events.map((e) => {
-            let bg = "bg-gray-200 text-black";
-            if (e.rating === "Positive") bg = "bg-green-600 text-white";
-            else if (e.rating === "Negative") bg = "bg-red-600 text-white";
-            else if (e.rating === "Neutral") bg = "bg-yellow-500 text-white";
-
-            return (
-              <li key={e.id} className={`p-2 rounded ${bg}`}>
-                <div className="flex justify-between">
-                  <span className="font-bold">{e.minute}′</span> {/* U+2032 prime, looks like a minute mark */}
-                  <span>{e.category}</span>
-                </div>
-                <div className="text-sm mt-1">
-                  {e.subcategories.join(", ")} | <b>{e.rating}</b>
-                </div>
-                {e.comment && <div className="italic">“{e.comment}”</div>} {/* curly quotes */} 
-              </li>
-            );
-          })}
-        </ul>
+        <h2 className="text-xl font-semibold mt-6 mb-4">Actions Summary</h2>
+        {events.length === 0 ? (
+          <p className="text-gray-400">No actions recorded yet</p>
+        ) : (
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <div className="text-lg font-semibold mb-4">
+              Total Actions: <span className="text-green-400">{events.length}</span>
+            </div>
+            <div className="space-y-3">
+              {Object.entries(
+                events.reduce((acc, e) => {
+                  if (!acc[e.category]) {
+                    acc[e.category] = 0;
+                  }
+                  acc[e.category] += 1;
+                  return acc;
+                }, {})
+              )
+                .sort((a, b) => b[1] - a[1])
+                .map(([category, count]) => (
+                  <div key={category} className="flex justify-between items-center p-2 bg-gray-700 rounded">
+                    <span className="font-semibold">{category}</span>
+                    <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm">
+                      {count}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,47 +4,36 @@ import { useState } from "react";
 import { CATEGORIES } from "@/components/categories";
 import EventButton from "@/components/EventButton";
 
-export default function EventLogger({ currentTime, onLog }) {
+export default function EventLogger({ currentTime, gameId, onLog, running }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [selectedSubcats, setSelectedSubcats] = useState([]);
-  const [rating, setRating] = useState(null);
-  const [comment, setComment] = useState("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  
-
-  const toggleSubcategory = (subcat) => {
-    setSelectedSubcats((prev) =>
-      prev.includes(subcat)
-        ? prev.filter((s) => s !== subcat)
-        : [...prev, subcat]
-    );
-  };
 
   const handleSave = async () => {
     setErrorMsg("");
 
+    if (!running) return setErrorMsg("Start the period to log events.");
     if (!selectedCategory) return setErrorMsg("Pick a category.");
-    if (selectedSubcats.length === 0) return setErrorMsg("Pick at least one subcategory.");
-    if (!rating) return setErrorMsg("Pick a rating (Positive/Neutral/Negative).");
+    
+    const hasSubcategories = CATEGORIES[selectedCategory].subcategories.length > 0;
+    if (hasSubcategories && !selectedSubcategory) return setErrorMsg("Pick a subcategory.");
+
+    const eventTimestamp = new Date().toISOString();
 
     const payload = {
-      id: Date.now(), // local UI id
-      minute: Math.floor((currentTime || 0) / 60),
+      game_id: Number(gameId),
+      event_timestamp: eventTimestamp,
       category: selectedCategory,
-      subcategories: selectedSubcats,
-      rating,
-      comment,
+      subcategory: selectedSubcategory || selectedCategory, // Use category name if no subcategory
     };
 
     try {
       setSaving(true);
       await onLog(payload); // parent will insert into Supabase
-      // Reset only on success
+      // Reset on success
       setSelectedCategory(null);
-      setSelectedSubcats([]);
-      setRating(null);
-      setComment("");
+      setSelectedSubcategory(null);
     } catch (e) {
       setErrorMsg(e?.message || "Failed to save event.");
     } finally {
@@ -73,72 +62,48 @@ export default function EventLogger({ currentTime, onLog }) {
           ))}
         </div>
       ) : (
-        // Step 2: Subcategories + Rating + Comment
+        // Step 2: Choose Subcategory (or confirm if no subcategories)
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">{selectedCategory}</h2>
 
-          {/* Subcategory Selection */}
-          <div className="grid grid-cols-2 gap-2">
-            {CATEGORIES[selectedCategory].subcategories.map((subcat) => {
-              const isSelected = selectedSubcats.includes(subcat);
-              return (
-                <button
-                  key={subcat}
-                  onClick={() => toggleSubcategory(subcat)}
-                  className={`px-3 py-2 rounded border transition ${
-                    isSelected
-                      ? `${CATEGORIES[selectedCategory].color} text-white` // bg = category color, text = white
-                      : "bg-gray-200 text-black hover:bg-gray-300"
-                  }`}
-                >
-                  {subcat}
-                </button>
-              );
-            })}
-          </div>
-
-
-          {/* Rating Selection */}
-          <div className="flex space-x-3">
-            {["Positive", "Neutral", "Negative"].map((r) => {
-              const isSelected = rating === r;
-              let colorClasses = "bg-gray-200 text-black hover:bg-gray-300"; // default
-
-              if (isSelected) {
-                if (r === "Positive") colorClasses = "bg-green-600 text-white";
-                if (r === "Neutral") colorClasses = "bg-yellow-500 text-white";
-                if (r === "Negative") colorClasses = "bg-red-600 text-white";
-              }
-
-              return (
-                <button
-                  key={r}
-                  onClick={() => setRating(r)}
-                  className={`px-3 py-2 rounded transition ${colorClasses}`}
-                >
-                  {r}
-                </button>
-              );
-            })}
-          </div>
-
-
-          {/* Comment */}
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Add optional comment..."
-            className="w-full p-2 border rounded text-black"
-          />
+          {CATEGORIES[selectedCategory].subcategories.length > 0 ? (
+            <>
+              {/* Subcategory Selection */}
+              <div className="grid grid-cols-2 gap-2">
+                {CATEGORIES[selectedCategory].subcategories.map((subcat) => {
+                  const isSelected = selectedSubcategory === subcat;
+                  return (
+                    <button
+                      key={subcat}
+                      onClick={() => setSelectedSubcategory(subcat)}
+                      className={`px-3 py-2 rounded border transition ${
+                        isSelected
+                          ? `${CATEGORIES[selectedCategory].color} text-white`
+                          : "bg-gray-200 text-black hover:bg-gray-300"
+                      }`}
+                    >
+                      {subcat}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="bg-gray-700 p-3 rounded text-sm text-gray-200">
+              No subcategories for this action - click Save to log it.
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex space-x-3">
             <button
               onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded disabled:bg-blue-400"
+              disabled={saving || !running}
+              className={`px-4 py-2 rounded text-white ${
+                running ? "bg-blue-600 hover:bg-blue-500" : "bg-gray-500 cursor-not-allowed"
+              } disabled:opacity-50`}
             >
-              {saving ? "Saving…" : "Save Event"}
+              {!running ? "Start period to save" : saving ? "Saving…" : "Save Event"}
             </button>
             <button
               onClick={() => setSelectedCategory(null)}
