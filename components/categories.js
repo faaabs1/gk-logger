@@ -4,17 +4,17 @@ export const CATEGORIES = {
     color: "bg-green-600",
     subcategories: ["nahe Distanz", "Weitschuss", "Kopfball","1v1", "Reaktion", "Cut Back", "Freistoß", "Elfmeter"],
   },
-  Raumverteidigung: {
+  Raumsicherung: {
     color: "bg-red-600",
-    subcategories: ["Flanke Grundlinie", "Flanke Halbraum","Eckball","Freistoß","out of Box", "Ballangriff", "Ball aufnahme"],
+    subcategories: ["Flanke Grundlinie", "Flanke Halbraum","Eckball","Freistoß","Sweeper", "Ballangriff", "Ballaufnahme"],
   },
   Spielaufbau: {
     color: "bg-blue-600",
-    subcategories: ["kurzer Pass", "langer Pass", "Auswurf", "Konter eingeleitet", "Ballanahme", "Ballmitnahme"],
+    subcategories: ["kurzer Pass", "langer Pass", "Chip", "3er Aufbau", "Auswurf", "Konter eingeleitet", "Ballmitnahme"],
   },
   Kommunikation: {
     color: "bg-yellow-600",
-    subcategories: [],
+    subcategories: ["Generell","Ball durch","Körpersprache","Zuteilung"],
   },
   "Goal Conceded": {
     color: "bg-red-600",
