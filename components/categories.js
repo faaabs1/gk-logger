@@ -2,15 +2,15 @@
 export const CATEGORIES = {
   Torverteidigung: {
     color: "bg-green-600",
-    subcategories: ["nahe Distanz", "Weitschuss", "Kopfball","1v1", "Reaktion", "Cut Back", "Freistoß", "Elfmeter"],
+    subcategories: ["Position", "nahe Distanz", "Weitschuss", "Kopfball","1v1", "Reaktion", "Cut Back", "Freistoß", "Elfmeter"],
   },
   Raumsicherung: {
     color: "bg-red-600",
-    subcategories: ["Flanke Grundlinie", "Flanke Halbraum","Eckball","Freistoß","Sweeper", "Ballangriff", "Ballaufnahme"],
+    subcategories: ["Position", "Flanke Grundlinie", "Flanke Halbraum","Eckball","Freistoß","Sweeper", "Ballangriff", "Ballaufnahme"],
   },
   Spielaufbau: {
     color: "bg-blue-600",
-    subcategories: ["kurzer Pass", "langer Pass", "Chip", "3er Aufbau", "Auswurf", "Konter eingeleitet", "Ballmitnahme"],
+    subcategories: ["Position", "kurzer Pass", "langer Pass", "Chip", "3er Aufbau", "Auswurf", "Konter eingeleitet", "Ballmitnahme"],
   },
   Kommunikation: {
     color: "bg-yellow-600",
